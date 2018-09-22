@@ -10,6 +10,16 @@ class TreeItem;
 /**
  * @brief ポインタで繋がっている、いわゆるツリー構造のデータ
  * このサンプルコードは、データ編集しない前提で書かれている
+ *
+ * 読み取り専用の場合は、
+ * QAbstractItemModelのサブクラスは以下の3つが純粋仮想(=実装必須)
+ * 1: data アイテムのデータを返す
+ * 2: rowCount 親から見た、自分のrowインデックスを返す
+ * 3: columnCount 親から見た、自分のcolumnインデックスを返す
+ *
+ * 以下は、状況に応じてオーバーライド
+ * 1: headerData
+ * 2: flags 各アイテムのフラグ（編集可能・選択可能・など）を返す
  */
 class TreeModel : public QAbstractItemModel
 {

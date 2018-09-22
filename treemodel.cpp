@@ -3,12 +3,22 @@
 
 #include <QStringList>
 
+/**
+ * @brief コンストラクタ、ツリーデータを作成する入り口
+ * @param data
+ * @param parent
+ */
 TreeModel::TreeModel(const QString &data, QObject *parent)
     : QAbstractItemModel(parent)
 {
     QList<QVariant> rootData;
     rootData << "Title" << "Summary";
+
+    //rootItemを実体化
     rootItem = new TreeItem(rootData);
+
+    //setupModelDataをコール
+    //splitで行ごとに分けてから(QStringList)渡す
     setupModelData(data.split(QString("\n")), rootItem);
 }
 
@@ -19,14 +29,14 @@ TreeModel::~TreeModel()
     delete rootItem;
 }
 
-int TreeModel::columnCount(const QModelIndex &parent) const
-{
-    if (parent.isValid())
-        return static_cast<TreeItem*>(parent.internalPointer())->columnCount();
-    else
-        return rootItem->columnCount();
-}
 
+
+/**
+ * @brief アイテムのデータを返す
+ * @param index 要求されているデータのインデックス
+ * @param role 返すデータの使用目的 return値の分岐に使ったりする
+ * @return データ
+ */
 QVariant TreeModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid())
@@ -76,6 +86,7 @@ QModelIndex TreeModel::index(int row, int column, const QModelIndex &parent)
     if (childItem)
         return createIndex(row, column, childItem);
     else
+        //QModelIndex()は無効なインデックスであることを表す
         return QModelIndex();
 }
 
@@ -93,6 +104,14 @@ QModelIndex TreeModel::parent(const QModelIndex &index) const
     return createIndex(parentItem->row(), 0, parentItem);
 }
 
+int TreeModel::columnCount(const QModelIndex &parent) const
+{
+    if (parent.isValid())
+        return static_cast<TreeItem*>(parent.internalPointer())->columnCount();
+    else
+        return rootItem->columnCount();
+}
+
 int TreeModel::rowCount(const QModelIndex &parent) const
 {
     TreeItem *parentItem;
@@ -107,48 +126,79 @@ int TreeModel::rowCount(const QModelIndex &parent) const
     return parentItem->childCount();
 }
 
+/**
+ * @brief ツリーデータを構築するメイン部分
+ * @param lines 入力となる文字列データのリスト
+ * @param parent 親ノードのポインタ
+ */
 void TreeModel::setupModelData(const QStringList &lines, TreeItem *parent)
 {
     QList<TreeItem*> parents;
     QList<int> indentations;
+
+    //親リストの先頭に、引数で受け取ったポインタを詰める
     parents << parent;
     indentations << 0;
 
     int number = 0;
 
-    while (number < lines.count()) {
+    while (number < lines.count())
+    {
+        //行頭のインデント数を調べる(=空白ではない文字の位置を探す)
         int position = 0;
-        while (position < lines[number].length()) {
+        while (position < lines[number].length())
+        {
             if (lines[number].at(position) != ' ')
                 break;
             position++;
         }
 
+        //行頭空白と行末改行を取り除いた文字列
         QString lineData = lines[number].mid(position).trimmed();
 
-        if (!lineData.isEmpty()) {
-            // Read the column data from the rest of the line.
+        if (!lineData.isEmpty())
+        {
+            //文字列をタブで分割する
+            //(behaviorにQString::SkipEmptyPartsを指定すると、空の部分は無視されて詰められる)
             QStringList columnStrings = lineData.split("\t", QString::SkipEmptyParts);
+
+            //QListに文字列リストを詰め直す
             QList<QVariant> columnData;
             for (int column = 0; column < columnStrings.count(); ++column)
                 columnData << columnStrings[column];
 
-            if (position > indentations.last()) {
+            //現在行はどの親にぶら下がるべきかを判定する
+            //そのために、前行のインデントと比較
+            if (position > indentations.last())
+            {
                 // The last child of the current parent is now the new parent
                 // unless the current parent has no children.
 
-                if (parents.last()->childCount() > 0) {
+                //前行よりもインデントが大きかった
+                // => 基本的には、前行が現在行の親となる
+
+                //前行の親に子がすでに居た
+                //(いない場合=初回はrootが親であり、子がいない。その場合は親探ししなくて良い)
+                if (parents.last()->childCount() > 0)
+                {
+                    //前行(=親リスト末尾の、子リストの末尾)を親とする
                     parents << parents.last()->child(parents.last()->childCount()-1);
                     indentations << position;
                 }
-            } else {
-                while (position < indentations.last() && parents.count() > 0) {
+            }
+            else
+            {
+                //前行と同じインデントか、より少ないインデントだった
+
+                //現在行と同じか小さいインデントをみつけるまで遡り、親を探す
+                while (position < indentations.last() && parents.count() > 0)
+                {
                     parents.pop_back();
                     indentations.pop_back();
                 }
             }
 
-            // Append a new item to the current parent's list of children.
+            //親の子リストに、現在行のデータを登録する
             parents.last()->appendChild(new TreeItem(columnData, parents.last()));
         }
 
